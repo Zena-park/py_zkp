@@ -4,8 +4,8 @@ from functools import reduce
 
 from py_zkp.groth16.code_to_r1cs import code_to_r1cs_with_inputs
 
-from py_zkp.groth16.qap_creator_lcm import (
-    r1cs_to_qap_times_lcm, 
+from py_zkp.groth16.qap_creator import (
+    r1cs_to_qap, 
     create_solution_polynomials, 
     create_divisor_polynomial,
     add_polys,
@@ -70,18 +70,47 @@ class FR(FQ):
 def test_code_to_r1cs():
     code = """
 def qeval(x):
-    y = x**3
-    return y + x + 5
+  y = x**3
+  z = y * x
+  assert z == 81
+  return y + x + 5
 """
 
     code2 = """
+def qeval(x):
+  y = x**3
+  z = y * x
+  assert z == 81
+  return y + x + 5
+"""
+
+    code3 = """
 def qeval(x, w, z):
     y = x**3 + w*z
     return y + x + 5
 """
+    code4 = """
+def qeval(x):
+  y = x**3
+  z = y * x
+  n = y * x
+  j = y * z
+  return y + x + 5
+"""
+
+    code5 = """
+def qeval(x):
+  y = x**3
+  z = y * x
+  n = y * x
+  j = y * z
+  assert n == z
+  assert z == 81
+  return y + x + 5
+"""
     inputs = [3]
 
-    r, A, B, C  = code_to_r1cs_with_inputs(code, inputs)
+    r, A, B, C  = code_to_r1cs_with_inputs(code5, inputs)
 
     print('r')
     print(r)
@@ -94,10 +123,10 @@ def qeval(x, w, z):
 
     return r, A, B, C
 
-def test_r1cs_qap_lcm():
+def test_r1cs_qap():
     r, A, B, C = test_code_to_r1cs()
 
-    Ap, Bp, Cp, Z = r1cs_to_qap_times_lcm(A, B, C)
+    Ap, Bp, Cp, Z = r1cs_to_qap(A, B, C)
 
     # print('Ap')
     # for x in Ap: print(x)
@@ -192,7 +221,7 @@ def test_setup(pub_r_indexs=None):
     # Z = [3456.0, -7200.0, 5040.0, -1440.0, 144.0]
     # R = [1, 3, 35, 9, 27, 30]
 
-    Ap, Bp, Cp, Z, R = test_r1cs_qap_lcm()
+    Ap, Bp, Cp, Z, R = test_r1cs_qap()
 
     # print("Ap : {}".format(Ap))
     # print("Bp : {}".format(Bp))
