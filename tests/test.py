@@ -4,8 +4,8 @@ from functools import reduce
 
 from py_zkp.groth16.code_to_r1cs import code_to_r1cs_with_inputs
 
-from py_zkp.groth16.qap_creator_lcm import (
-    r1cs_to_qap_times_lcm, 
+from py_zkp.groth16.qap_creator import (
+    r1cs_to_qap, 
     create_solution_polynomials, 
     create_divisor_polynomial,
     add_polys,
@@ -15,16 +15,16 @@ from py_zkp.groth16.qap_creator_lcm import (
 
 from py_zkp.groth16.poly_utils import (
     # _multiply_polys,
-    _add_polys,
+    add_polys,
     # _subtract_polys,
     # _div_polys,
     # _eval_poly,
     # _multiply_vec_matrix,
-    _multiply_vec_vec,
+    multiply_vec_vec,
     getNumWires,
     getNumGates,
-    getFRPoly1D,
-    getFRPoly2D,
+    # getFRPoly1D,
+    # getFRPoly2D,
     ax_val,
     bx_val,
     cx_val,
@@ -70,18 +70,47 @@ class FR(FQ):
 def test_code_to_r1cs():
     code = """
 def qeval(x):
-    y = x**3
-    return y + x + 5
+  y = x**3
+  z = y * x
+  assert z == 81
+  return y + x + 5
 """
 
     code2 = """
+def qeval(x):
+  y = x**3
+  z = y * x
+  assert z == 81
+  return y + x + 5
+"""
+
+    code3 = """
 def qeval(x, w, z):
     y = x**3 + w*z
     return y + x + 5
 """
+    code4 = """
+def qeval(x):
+  y = x**3
+  z = y * x
+  n = y * x
+  j = y * z
+  return y + x + 5
+"""
+
+    code5 = """
+def qeval(x):
+  y = x**3
+  z = y * x
+  n = y * x
+  j = y * z
+  assert n == z
+  assert z == 81
+  return y + x + 5
+"""
     inputs = [3]
 
-    r, A, B, C  = code_to_r1cs_with_inputs(code, inputs)
+    r, A, B, C  = code_to_r1cs_with_inputs(code5, inputs)
 
     print('r')
     print(r)
@@ -94,17 +123,17 @@ def qeval(x, w, z):
 
     return r, A, B, C
 
-def test_r1cs_qap_lcm():
+def test_r1cs_qap():
     r, A, B, C = test_code_to_r1cs()
 
-    Ap, Bp, Cp, Z = r1cs_to_qap_times_lcm(A, B, C)
+    Ap, Bp, Cp, Z = r1cs_to_qap(A, B, C)
 
-    # print('Ap')
-    # for x in Ap: print(x)
-    # print('Bp')
-    # for x in Bp: print(x)
-    # print('Cp')
-    # for x in Cp: print(x)
+    print('Ap')
+    for x in Ap: print(x)
+    print('Bp')
+    for x in Bp: print(x)
+    print('Cp')
+    for x in Cp: print(x)
     
     # print('Z')
     # print(Z)
@@ -112,7 +141,7 @@ def test_r1cs_qap_lcm():
     #Apoly = Ap.r
     #Bpoly = Bp.r
     #Cpoly = Cp.r
-    Apoly, Bpoly, Cpoly, sol = create_solution_polynomials(r, Ap, Bp, Cp)
+    sol = create_solution_polynomials(r, Ap, Bp, Cp)
     
     # print('Apoly(A(x))')
     # print(Apoly)
@@ -192,29 +221,30 @@ def test_setup(pub_r_indexs=None):
     # Z = [3456.0, -7200.0, 5040.0, -1440.0, 144.0]
     # R = [1, 3, 35, 9, 27, 30]
 
-    Ap, Bp, Cp, Z, R = test_r1cs_qap_lcm()
+    Ax, Bx, Cx, Zx, Rx = test_r1cs_qap()
 
-    # print("Ap : {}".format(Ap))
+    #print("Ap : {}".format(Ap))
     # print("Bp : {}".format(Bp))
     # print("Cp : {}".format(Cp))
     # print("Z : {}".format(Z))
     # print("R : {}".format(R))
     # print("")
 
-    Ax = getFRPoly2D(Ap)
-    Bx = getFRPoly2D(Bp)
-    Cx = getFRPoly2D(Cp)
-    Zx = getFRPoly1D(Z)
-    Rx = getFRPoly1D(R)
-    print("Ax : {}".format(Ax))
-    print("Bx : {}".format(Bx))
-    print("Cx : {}".format(Cx))
-    print("Zx : {}".format(Zx))
-    print("Rx : {}".format(Rx))
-    print("")
+    # Ax = getFRPoly2D(Ap)
+    # Bx = getFRPoly2D(Bp)
+    # Cx = getFRPoly2D(Cp)
+    # Zx = getFRPoly1D(Z)
+    # Rx = getFRPoly1D(R)
+    # print("Ax : {}".format(Ax))
+    # print("Bx : {}".format(Bx))
+    # print("Cx : {}".format(Cx))
+    # print("Zx : {}".format(Zx))
+    # print("Rx : {}".format(Rx))
+    # print("")
 
+    #compare_all_polynomials(Ax, Bx, Cx, Zx, Rx, Ap, Bp, Cp, Z, R)
     # (Ax.R * Bx.R - Cx.R) / Zx = Hx .... r
-    Hx, r = hxr(Ax, Bx, Cx, Zx, R)
+    Hx, r = hxr(Ax, Bx, Cx, Zx, Rx)
     # print("H(x) : {}".format(Hx))
     # print("r : {}".format(r))
 
@@ -254,7 +284,7 @@ def test_setup(pub_r_indexs=None):
     #TEST1 : r should be zero
     t1 = (reduce((lambda x, y : x*y), r) == 0)
 
-    lhs = _multiply_vec_vec(Rx, Ax_val) * _multiply_vec_vec(Rx, Bx_val) - _multiply_vec_vec(Rx, Cx_val)
+    lhs = multiply_vec_vec(Rx, Ax_val) * multiply_vec_vec(Rx, Bx_val) - multiply_vec_vec(Rx, Cx_val)
     rhs = Zx_val * Hx_val
 
     #TEST2 : lhs == rhs
@@ -358,8 +388,8 @@ def test_proving_and_verifying(pub_r_indexs=None):
 
     def proof_completeness(pub_r_indexs=pub_r_indexs):
 
-        A = alpha + _multiply_vec_vec(Rx, Ax_val) + r*delta
-        B = beta + _multiply_vec_vec(Rx, Bx_val) + s*delta
+        A = alpha + multiply_vec_vec(Rx, Ax_val) + r*delta
+        B = beta + multiply_vec_vec(Rx, Bx_val) + s*delta
 
         C0 = 1/delta 
 
@@ -379,9 +409,9 @@ def test_proving_and_verifying(pub_r_indexs=None):
         C2 = Hx_val*Zx_val
         C3 = A*s + B*r - r*s*delta
 
-        C1112 = _add_polys(C1_1, C1_2) # vec
-        C111213 = _add_polys(C1112, C1_3) # vec
-        C1111213 = _multiply_vec_vec(C1, C111213) #num
+        C1112 = add_polys(C1_1, C1_2) # vec
+        C111213 = add_polys(C1112, C1_3) # vec
+        C1111213 = multiply_vec_vec(C1, C111213) #num
 
         C = C0 * (C1111213 + C2) + C3
 
@@ -390,7 +420,7 @@ def test_proving_and_verifying(pub_r_indexs=None):
         rpub = [Rx[i] for i in pub_r_indexs]
         valpub = [VAL[i] for i in pub_r_indexs]
 
-        rhs = alpha*beta + gamma*_multiply_vec_vec(rpub,valpub) + C*delta
+        rhs = alpha*beta + gamma*multiply_vec_vec(rpub,valpub) + C*delta
 
         print("#PROOF COMPLETENESS CHECK#")
         print("rhs : {}".format(rhs))
