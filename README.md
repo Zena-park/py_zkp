@@ -1,4 +1,4 @@
-# py-zkp
+# py_zkp
 
 This is complementaly project of [ZKP study series postings(WIP)](https://www.notion.so/tokamak/6e59b0e13af24a83ae50a10cd59dfbfa?pvs=4)
 
@@ -7,60 +7,20 @@ Using this library, you can convert Python code to QAP and use functions for the
 
 # Quickstart
 
-It's not ready yet. It will be published.
-
 ```
-python -m pip install py-zkp
+python -m pip install py_zkp
 ```
 
 # Developer Setup
 
-### 1. Prerequisite
+### Development Environment Setup
 
-- python (https://www.python.org/downloads/)
-- poetry (https://python-poetry.org/docs/#installation)
-
-### 2. Virtual Environment
+You can set up your dev environment with:
 
 ```
-python -m venv .venv
-. .venv/bin/activate
-```
-
-### 3. Install Dependencies
-
-```
-(.venv) poetry install
-```
-
-### 4. Test
-
-```
-(.venv) python ./tests/test.py
-```
-
-### 5. ETC
-
-Add required package
-
-```
-(.venv) poetry add py-zkp
-```
-
-Remove required package
-
-```
-(.venv) poetry remove py-zkp
-```
-
-Build package
-
-```
-(.venv) poetry build
-```
-
-Publish package
-
-```
-(.venv) poetry publish
+git clone https://github.com/tokamak-network/py_zkp.git
+cd py_zkp
+python3 -m venv venv
+. venv/bin/activate
+python -m pip install -e ".[dev]"
 ```
