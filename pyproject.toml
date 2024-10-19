@@ -1,20 +1,3 @@
-[tool.poetry]
-name = "py-zkp"
-version = "0.0.1"
-description = ""
-authors = [
-    "ggs134 <inditow@gmail.com>",
-    "jdhyun09 <jdhyun09@naver.com>",
-    "Zena-park <zena@tokamak.network>",
-    "rlgns98kr <rlgns98kr@gmail.com>",
-]
-readme = "README.md"
-
-[tool.poetry.dependencies]
-python = ">=3.8,<4.0"
-py-ecc = "7.0.1"
-
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
