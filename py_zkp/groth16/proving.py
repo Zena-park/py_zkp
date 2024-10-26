@@ -1,7 +1,7 @@
 from py_ecc.fields import bn128_FQ as FQ
 from py_ecc import bn128
 
-from poly_utils import (
+from .poly_utils import (
     getNumWires,
     getNumGates
 )

@@ -81,7 +81,7 @@ def qeval(x):
   y = x**3
   z = y * x
   assert z == 81
-  return y + x + 5
+  return y + x + 5, z * x
 """
 
     code3 = """
@@ -106,11 +106,22 @@ def qeval(x):
   j = y * z
   assert n == z
   assert z == 81
-  return y + x + 5
+  return y + x + 5, n + 6
+"""
+
+    code6 = """
+def qeval(x):
+  y = x**3
+  z = y * x
+  n = y * x
+  j = y * z
+  assert n == z
+  assert z == 81
+  return
 """
     inputs = [3]
 
-    r, A, B, C  = code_to_r1cs_with_inputs(code5, inputs)
+    r, A, B, C  = code_to_r1cs_with_inputs(code6, inputs)
 
     print('r')
     print(r)
@@ -452,4 +463,4 @@ if __name__ == "__main__":
     # test_proving_and_verifying()
     # test_proving_and_verifying([0,1])
     # test_proving_and_verifying([0,2])
-    test_proving_and_verifying([0,1,2])
+    test_proving_and_verifying([0,1])
