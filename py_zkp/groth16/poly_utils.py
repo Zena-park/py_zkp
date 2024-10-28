@@ -48,7 +48,7 @@ def div_polys(a, b):
 
 # Evaluate a polynomial at a point
 def eval_poly(poly, x):
-    return sum([poly[i] * x**i for i in range(len(poly))])
+    return sum([FR(poly[i]) * x**i for i in range(len(poly))])
 
 def mk_singleton(point_loc, height, total_pts):
     fac = FR(1)
@@ -66,7 +66,7 @@ def lagrange_interp(vec):
     for i in range(len(vec)):
         o = add_polys(o, mk_singleton(i + 1, FR(vec[i]), len(vec)))
     for i in range(len(vec)):
-        assert eval_poly(o, i + 1) == vec[i], \
+        assert eval_poly(o, i + 1) == FR(vec[i]), \
             (o, eval_poly(o, i + 1), i+1)
     return o
 

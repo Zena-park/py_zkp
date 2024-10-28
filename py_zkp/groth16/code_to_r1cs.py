@@ -29,6 +29,7 @@ def extract_inputs_and_body(code):
         else:
             raise Exception("Invalid arg: %r" % ast.dump(arg))
     # Gather the body
+    outputs = []
     body = []
     returned = False
     for c in code[0].body:
@@ -38,8 +39,12 @@ def extract_inputs_and_body(code):
             raise Exception("Cannot do stuff after a return statement")
         if isinstance(c, ast.Return):
             returned = True
+            if isinstance(c.value, ast.Tuple):
+                outputs = [f'~out_{i}' for i in range(len(c.value.elts))]
+            elif c.value is not None:
+                outputs = ['~out']
         body.append(c)
-    return inputs, body
+    return inputs, body, outputs
 
 # Convert a body with potentially complex expressions into
 # simple expressions of the form x = y or x = y * z
@@ -74,6 +79,7 @@ def flatten_stmt(stmt):
     if isinstance(stmt, ast.Assign):
         assert len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name)
         target = stmt.targets[0].id
+
     elif isinstance(stmt, ast.Assert):
         assert isinstance(stmt.test, ast.Compare) and len(stmt.test.ops) == 1 and isinstance(stmt.test.ops[0], ast.Eq), "Only '==' comparison is allowed in assert statements"
         left = get_value(stmt.test.left)
@@ -83,8 +89,17 @@ def flatten_stmt(stmt):
             if left != right:
                 raise AssertionError(f"Assert condition not satisfied: {left} != {right}")
         return [['assert', left, right]] #@Todo: assert -> '==' ?
-    elif isinstance(stmt, ast.Return): #@Todo: 고정된 ~out 수정
-        target = '~out'
+
+    elif isinstance(stmt, ast.Return):
+        if stmt.value is None:
+            return []
+        elif isinstance(stmt.value, ast.Tuple):
+            flattened = []
+            for i, elt in enumerate(stmt.value.elts):
+                flattened.extend(flatten_expr(f'~out_{i}', elt))
+            return flattened
+        else:
+            return flatten_expr('~out', stmt.value)
     # Get inner content
     return flatten_expr(target, stmt.value)
 
@@ -94,7 +109,7 @@ def flatten_expr(target, expr):
     if isinstance(expr, ast.Name):
         return [['set', target, expr.id]]
     # x = 5
-    elif isinstance(expr, ast.Num):
+    elif isinstance(expr, ast.Constant):
         return [['set', target, expr.n]]
     # x = y (op) z
     # Or, for that matter, x = y (op) 5
@@ -112,13 +127,13 @@ def flatten_expr(target, expr):
         # Exponentiation gets compiled to repeat multiplication,
         # requires constant exponent
         elif isinstance(expr.op, ast.Pow):
-            assert isinstance(expr.right, ast.Num)
+            assert isinstance(expr.right, ast.Constant)
             if expr.right.n == 0:
                 return [['set', target, 1]]
             elif expr.right.n == 1:
                 return flatten_expr(target, expr.left)
             else: # This could be made more efficient via square-and-multiply but oh well
-                if isinstance(expr.left, (ast.Name, ast.Num)):
+                if isinstance(expr.left, (ast.Name, ast.Constant)):
                     nxt = base = expr.left.id if isinstance(expr.left, ast.Name) else expr.left.n
                     o = []
                 else:
@@ -134,7 +149,7 @@ def flatten_expr(target, expr):
         else:
             raise Exception("Bad operation: %r" % ast.dump(expr.op))
         # If the subexpression is a variable or a number, then include it directly
-        if isinstance(expr.left, (ast.Name, ast.Num)):
+        if isinstance(expr.left, (ast.Name, ast.Constant)):
             var1 = expr.left.id if isinstance(expr.left, ast.Name) else expr.left.n
             sub1 = []
 
@@ -144,7 +159,7 @@ def flatten_expr(target, expr):
             var1 = mksymbol()
             sub1 = flatten_expr(var1, expr.left)
         # Same for right subexpression as for left subexpression
-        if isinstance(expr.right, (ast.Name, ast.Num)):
+        if isinstance(expr.right, (ast.Name, ast.Constant)):
             var2 = expr.right.id if isinstance(expr.right, ast.Name) else expr.right.n
             sub2 = []
         else:
@@ -168,16 +183,16 @@ def insert_var(arr, varz, var, used, reverse=False):
         arr[0] += var * (-1 if reverse else 1)
 
 # Maps input, output and intermediate variables to indices
-def get_var_placement(inputs, flatcode):    #@Todo: 고정된 ~out 수정
-    used_vars = ['~one'] + inputs + ['~out']
+def get_var_placement(inputs, flatcode, outputs):
+    used_vars = ['~one'] + outputs + inputs
     for c in flatcode:
         if c[0] != 'assert' and c[1] not in used_vars:
             used_vars.append(c[1])
     return used_vars
 
 # Convert the flattened code generated above into a rank-1 constraint system
-def flatcode_to_r1cs(inputs, flatcode):
-    varz = get_var_placement(inputs, flatcode)
+def flatcode_to_r1cs(inputs, flatcode, outputs):
+    varz = get_var_placement(inputs, flatcode, outputs)
     A, B, C = [], [], []
     used = {i: True for i in inputs}
     # 일단 파라미터는 무조건 used로 바꾸고.
@@ -236,12 +251,12 @@ def grab_var(varz, assignment, var):
 
 # Goes through flattened code and completes the input vector
 # 특정한 인풋값에 의해서 인풋백터를 완성함
-def assign_variables(inputs, input_vars, flatcode):
-    varz = get_var_placement(inputs, flatcode)
+def assign_variables(inputs, input_vars, flatcode, outputs):
+    varz = get_var_placement(inputs, flatcode, outputs)
     assignment = [0] * len(varz)
     assignment[0] = 1
     for i, inp in enumerate(input_vars):
-        assignment[i + 1] = inp
+        assignment[len(outputs) + i + 1] = inp
     for x in flatcode:
         if x[0] == 'set':
             assignment[varz.index(x[1])] = grab_var(varz, assignment, x[2])
@@ -257,7 +272,7 @@ def assign_variables(inputs, input_vars, flatcode):
 
 
 def code_to_r1cs_with_inputs(code, input_vars):
-    inputs, body = extract_inputs_and_body(parse(code))
+    inputs, body, outputs = extract_inputs_and_body(parse(code))
     print('Inputs')
     print(inputs)
     print('Body')
@@ -266,16 +281,18 @@ def code_to_r1cs_with_inputs(code, input_vars):
     print('Flatcode')
     print(flatcode)
     print('Input var assignment')
-    print(get_var_placement(inputs, flatcode))
-    A, B, C = flatcode_to_r1cs(inputs, flatcode)
-    r = assign_variables(inputs, input_vars, flatcode)
+    print(get_var_placement(inputs, flatcode, outputs))
+    A, B, C = flatcode_to_r1cs(inputs, flatcode, outputs)
+    r = assign_variables(inputs, input_vars, flatcode, outputs)
     return r, A, B, C
 
-# r, A, B, C = code_to_r1cs_with_inputs("""
-# def qeval(x):
-#     y = x**3
-#     return y + x + 5
-# """, [3])
+
+
+r, A, B, C = code_to_r1cs_with_inputs("""
+def qeval(x):
+    y = x**3
+    return y+x+5, x, x+x+x
+""", [3])
 # print('r')
 # print(r)
 # print('A')

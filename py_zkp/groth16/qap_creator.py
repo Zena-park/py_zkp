@@ -1,4 +1,4 @@
-from poly_utils import (
+from .poly_utils import (
     multiply_polys,
     add_polys,
     subtract_polys,
