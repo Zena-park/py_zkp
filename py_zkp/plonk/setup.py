@@ -4,6 +4,7 @@ import math
 
 import ast
 from scipy.interpolate import lagrange
+import random
 
 if 'arg' not in dir(ast):
     ast.arg = type(None)
@@ -509,7 +510,7 @@ def set_values(inputs, input, input_indexes, input_values):
         for j, target in  enumerate(inputs):
             if key == target:
                 input_values[i] = input[j]
-    return
+    return input_values
 
 def get_v_metrics(gates, input_indexes):
     vl = []
@@ -806,341 +807,80 @@ def to_vanishing_poly(roots, field):
     # Z^n - 1 = (Z - 1)(Z - w)(Z - w^2)...(Z - w^(n-1))
     return galois.Poly.Degrees([len(roots), 0], coeffs=[1, -1], field=field)
 
-# gate vectors
-ql = []
-qr = []
-qm = []
-qo = []
-qc = []
-
-# v metrics
-vl = []
-vr = []
-vo = []
-
-# witness vectors , trace vectors
-a = []
-b = []
-c = []
-pi = []
-
-# code = """
-# def qeval(x):
-#     y = x**3
-#     return y + 5
-# """
-# input = [3]
-
-# code = """
-# def qeval(e,x):
-#     y = e * x + x
-#     return y + 1
-# """
-
-# 2x^2 - x^2*y^2 + 3
-code = """
-def qeval(x, y):
-    g0 = x * x
-    g1 = x * x
-    g2 = y * y
-    g3 = g0 * 2
-    g4 = g1 * g2
-    g5 = g3 - g4
-    return g5 + 3
-"""
-input = [2, 3]
-
-# code = """
-# def qeval(x, y):
-#     z0 =  2 * x**2
-#     z1 =  x**2 * y**2
-#     z2 = z0 - z1
-#     return z2 + 3
-# """
-
-# code = """
-# def qeval(e, x):
-#     u = e * x
-#     v = u + x
-#     return v - 1
-# """
-# input = [2, 3]
-
-# code = """
-# def qeval(x):
-#     z1 = x * x
-#     z2 = z1 * x
-#     z3 = z2 + x
-#     return z3 -30
-# """
-# input = [3]
-
-inputs, body = extract_inputs_and_body(parse(code))
-print('inputs')
-print(inputs)
-# print('body')
-# print(body)
-flatcode = flatten_body(body)
-print('flatcode')
-print(flatcode)
-
-print('---- When calculating by hand ------')
-input_indexes = get_var_placement(inputs, flatcode)
-
-# find a Q matrix
-(ql, qr, qm, qo, qc) = get_q_metrics(flatcode)
-print('ql', ql)
-print('qr', qr)
-print('qm', qm)
-print('qo', qo)
-print('qc', qc)
-
-# find a V matrix
-(vl, vr, vo) = get_v_metrics(flatcode, input_indexes)
-print('vl', vl)
-print('vr', vr)
-print('vo', vo)
-
-# trace matrix
-input_values = ['-' for i in range(len(input_indexes))]
-
-set_values(inputs, input, input_indexes, input_values)
-print('input_indexes', input_indexes)
-print('input_values', input_values)
-
-q_zipped = list(zip(ql, qr, qm, qo, qc))
-# print('q_zipped', q_zipped)
-
-v_zipped = list(zip(vl, vr, vo))
-print('v_zipped', v_zipped)
-
-#--------------------
-v_values = [ ['-', '-','-'] for i in range(len(v_zipped))]
-
-v_values = trace_matrix(flatcode, q_zipped, v_zipped, v_values, input_indexes, input_values)
-print('trace matrix', v_values)
-a, b, c = gen_abc(v_values)
-print('a', a)
-print('b', b)
-print('c', c)
-
-print('input_values', input_values)
-
-assert(validate_native(ql, qr, qm, qo, qc, a, b, c)== True)
-
-
-# 길이 n으로 벡터 채우기
-n = len(ql)
-n = 2**int(np.ceil(np.log2(n)))
-assert n & n - 1 == 0, "n must be a power of 2"
-
-if len(ql) != n :
-    print('n', n)
-    ql = pad_array(ql, n)
-    qr = pad_array(qr, n)
-    qm = pad_array(qm, n)
-    qc = pad_array(qc, n)
-    qo = pad_array(qo, n)
-    a = pad_array(a, n)
-    b = pad_array(b, n)
-    c = pad_array(c, n)
-    print('ql', ql)
-    print('qr', qr)
-    print('qm', qm)
-    print('qc', qc)
-    print('qo', qo)
-    print('a', a)
-    print('b', b)
-    print('c', c)
-
-#---- Copy constraints
-witness = a + b + c
-# print('witness', witness)
-eval_domain = range(0,len(witness))
-# print('eval_domain', eval_domain)
-witness_x_a = find_permutation(range(0,len(a)), range(0,len(a)))
-# print('witness_x_a', witness_x_a)
-
-witness_x_b = find_permutation(range(len(a),len(b)*2), range(len(a),len(b)*2))
-# print('witness_x_b', witness_x_b)
-
-witness_x_c = find_permutation(range(len(b)*2, len(c)*3), range(len(a)*2,len(a)*3))
-# print('witness_x_c', witness_x_c)
-
-witness_y = find_permutation(witness, eval_domain)
-# print('witness_y', witness_y)
-
-print('---- When calculating using polynomials, ------')
-
-# https://medium.com/@cryptofairy/under-the-hood-of-zksnarks-plonk-protocol-part-5-4819dd56d3f1
-# https://asecuritysite.com/principles_pub/g_pick?val1=41
-p = 241
-# g = getG(p, 8)
-# print(f"p={p}")
-# print(f"g={g}")
-
-# a = g[0]
-# roots = ([pow(a,i,p) for i in range(p-1)])
-# print(f"roots = {roots}")
-
-# w1 = primitive_root_of_unity_by_modulo_general(p)
-# print(f"primitive_root_of_unity_by_modulo = {w1}")
-
-# w1 = primitive_root_of_unity_by_modulo(p)
-# print(f"primitive_root_of_unity_by_modulo2 = {w1}")
-
-print(f"p = {p}")
-print(f"n = {n}")
-
-omega = primitive_nth_root_of_unity_by_modulo(n,p)
-print(f"omega = {omega}")
-assert pow(omega,n,p) == 1, f"omega (ω) {omega} is not a root of unity"
-
-root = get_root(omega,n,p)
-print(f"root = {root}")
-
-Fp = galois.GF(p)
-omega = Fp.primitive_root_of_unity(n)
-print(f"omega = {omega}")
-
-roots = Fp([omega**i for i in range(n)])
-print(f"roots = {roots}")
-
-###########
-# zero test
-# f(x) = f(w0) = f(w1) = f(w0...) = f(w(k-1)) = 0
-
-###########
-# product test
-# f(w0)*f(w1)*..*f(wk-1) = 1
-# t(1)=f(1), t(w)=f(1)*f(w), t(w2)=f(1)*f(w)*f(w2)
-# t(wk-1)=1
-
-
-###########3
-x = 2
-y = 3
-
-# 2x^2 - x^2y^2 + 3
-out = 2*x**2 - x**2*y**2 + 3
-print(f"out = {out}")
-
-# We have 7 gates, next power of 2 is 8
-# n = 7
-# n = 2**int(np.ceil(np.log2(n)))
-# assert n & n - 1 == 0, "n must be a power of 2"
-# print(f"n = {n}")
-# # Prime field p
-# p = 73
-# Fp = galois.GF(p)
-# print(f"p = {p}")
-
-# # Find primitive root of unity
-# omega = Fp.primitive_root_of_unity(n)
-
-# print(f"omega = {omega}")
-
-# assert omega**(n) == 1, f"omega (ω) {omega} is not a root of unity"
-
-# roots = Fp([omega**i for i in range(n)])
-# print(f"roots = {roots}")
-
-# create permutation vectors (sigma) for a, b, and c:
-ai = range(0, n)
-bi = range(n, 2*n)
-ci = range(2*n, 3*n)
-
-input_index = find_input_index(inputs, input_indexes)
-print('input_index', input_index)
-
-(sigma_ai, sigma_bi, sigma_ci) = set_sigma_index(n, vl, vr, vo, input_index)
-
-print('sigma_ai', sigma_ai)
-print('sigma_bi', sigma_bi)
-print('sigma_ci', sigma_ci)
-
-k1 = 2
-k2 = 4
-# Fp = galois.GF(p)
-# c1_roots = Fp(root)
-c1_roots = roots
-c2_roots = c1_roots * k1
-c3_roots = c1_roots * k2
-c_roots = np.concatenate((c1_roots, c2_roots, c3_roots))
-
-print('c1_roots', c1_roots)
-print('c2_roots', c2_roots)
-print('c3_roots', c3_roots)
-# print('roots', roots)
-check = set()
-for r in c_roots:
-    assert not int(r) in check, f"Duplicate root {r} in {c_roots}"
-    check.add(int(r))
-
-sigma1 = Fp([c_roots[sigma_ai[i]] for i in range(0, n)])
-sigma2 = Fp([c_roots[sigma_bi[i]] for i in range(0, n)])
-sigma3 = Fp([c_roots[sigma_ci[i]] for i in range(0, n)])
-
-print('sigma1', sigma1)
-print('sigma2', sigma2)
-print('sigma3', sigma3)
-
-print(' --- Gate Polynomials  ---')
-QL = to_poly(roots, ql, Fp)
-QR = to_poly(roots, qr, Fp)
-QM = to_poly(roots, qm, Fp)
-QC = to_poly(roots, qc, Fp)
-QO = to_poly(roots, qo, Fp)
-
-print('QL', QL)
-print('QR', QR)
-print('QM', QM)
-print('QC', QC)
-print('QO', QO)
-
-print('QL(8) ', QL(8) )
-
-S1 = to_poly(roots, sigma1, Fp)
-S2 = to_poly(roots, sigma2, Fp)
-S3 = to_poly(roots, sigma3, Fp)
-
-I1 = to_poly(roots, c1_roots, Fp)
-I2 = to_poly(roots, c2_roots, Fp)
-I3 = to_poly(roots, c3_roots, Fp)
-
-print(' --- Permutation Polynomials ---')
-print('S1 ', S1 )
-print('S2 ', S2 )
-print('S3 ', S3 )
-print('I1 ', I1 )
-print('I2 ', I2 )
-print('I3 ', I3 )
-
-padding = 3
-for i in range(0, len(roots)):
-    s = f"i = {i:{padding}} --> {roots[i]:{padding}} "
-    s += f"  I1({roots[i]:{padding}}) = {I1(roots[i]):{padding}} "
-    s += f"  I2({roots[i]:{padding}}) = {I2(roots[i]):{padding}} "
-    s += f"  I3({roots[i]:{padding}}) = {I3(roots[i]):{padding}} "
-    s += f"  S1({roots[i]:{padding}}) = {S1(roots[i]):{padding}} "
-    s += f"  S2({roots[i]:{padding}}) = {S2(roots[i]):{padding}} "
-    s += f"  S3({roots[i]:{padding}}) = {S3(roots[i]):{padding}} "
-    print(s)
-
-    assert I1(roots[i]) == roots[i], f"I1({roots[i]}) != {roots[i]}"
-    assert I2(roots[i]) == k1 * roots[i], f"I2({roots[i]}) != {k1 * roots[i]}"
-    assert I3(roots[i]) == k2 * roots[i], f"I3({roots[i]}) != {k2 * roots[i]}"
-
-    assert S1(roots[i]) == sigma1[i], f"S1({roots[i]}) != {sigma1[i]}"
-    assert S2(roots[i]) == sigma2[i], f"S2({roots[i]}) != {sigma2[i]}"
-    assert S3(roots[i]) == sigma3[i], f"S3({roots[i]}) != {sigma3[i]}"
-
-
-Zh = to_vanishing_poly(roots, Fp)
-for x in roots:
-    assert Zh(x) == 0
-
-print(' --- Vanishing Polynomial ---')
-# Zh = x^8 + 240 which translates to x^8 - 1 (240 == -1 in Prime Field p=241)
-print('Zh ', Zh )
+def adjust_witness_size(ql, qr, qm, qo, qc, a, b , c, n):
+    if len(ql) != n :
+        ql = pad_array(ql, n)
+        qr = pad_array(qr, n)
+        qm = pad_array(qm, n)
+        qc = pad_array(qc, n)
+        qo = pad_array(qo, n)
+        a = pad_array(a, n)
+        b = pad_array(b, n)
+        c = pad_array(c, n)
+    return (ql, qr, qm, qo, qc, a, b , c)
+
+def get_setup_values(code, input):
+    inputs, body = extract_inputs_and_body(parse(code))
+    flatcode = flatten_body(body)
+    input_indexes = get_var_placement(inputs, flatcode)
+    (ql, qr, qm, qo, qc) = get_q_metrics(flatcode)
+    (vl, vr, vo) = get_v_metrics(flatcode, input_indexes)
+    input_values = ['-' for i in range(len(input_indexes))]
+    input_values = set_values(inputs, input, input_indexes, input_values)
+
+    q_zipped = list(zip(ql, qr, qm, qo, qc))
+    v_zipped = list(zip(vl, vr, vo))
+
+    v_values = [ ['-', '-','-'] for i in range(len(v_zipped))]
+    v_values = trace_matrix(flatcode, q_zipped, v_zipped, v_values, input_indexes, input_values)
+    a, b, c = gen_abc(v_values)
+
+    assert(validate_native(ql, qr, qm, qo, qc, a, b, c)== True)
+
+    # -------------------------------------
+    # find omega, roots
+    n = len(ql)
+    n = 2**int(np.ceil(np.log2(n)))
+    assert n & n - 1 == 0, "n must be a power of 2"
+    p = 241
+
+    omega = primitive_nth_root_of_unity_by_modulo(n,p)
+    root = get_root(omega,n,p)
+    # print(f"root = {root}")
+    # print(f"omega = {omega}")
+
+    Fp = galois.GF(p)
+    omega1 = Fp.primitive_root_of_unity(n)
+    # print(f"omega1 = {omega1}")
+    roots = Fp([omega1**i for i in range(n)])
+    # print(f"roots = {roots}")
+    # print(f"p = {p}")
+    # print(f"n = {n}")
+    # print(f"omega = {omega}")
+    assert pow(omega, n, p) == 1, f"omega (ω) {omega} is not a root of unity"
+
+    # -------------------------------------
+    # find omega, roots
+    (ql, qr, qm, qo, qc, a, b, c) = adjust_witness_size(ql, qr, qm, qo, qc, a, b, c, n)
+
+    # create permutation vectors (sigma) for a, b, and c:
+    input_index = find_input_index(inputs, input_indexes)
+    (sigma_ai, sigma_bi, sigma_ci) = set_sigma_index(n, vl, vr, vo, input_index)
+    k1 = 2
+    k2 = 4
+    c1_roots = roots
+    c2_roots = c1_roots * k1
+    c3_roots = c1_roots * k2
+    c_roots = np.concatenate((c1_roots, c2_roots, c3_roots))
+
+    check = set()
+    for r in c_roots:
+        assert not int(r) in check, f"Duplicate root {r} in {c_roots}"
+        check.add(int(r))
+
+    sigma1 = Fp([c_roots[sigma_ai[i]] for i in range(0, n)])
+    sigma2 = Fp([c_roots[sigma_bi[i]] for i in range(0, n)])
+    sigma3 = Fp([c_roots[sigma_ci[i]] for i in range(0, n)])
+
+    return (ql, qr, qm, qo, qc, a, b, c, sigma1, sigma2, sigma3, omega1, roots)
 
